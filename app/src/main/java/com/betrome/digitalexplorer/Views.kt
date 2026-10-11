@@ -16,7 +16,8 @@ private fun paint(color: Int, stroke: Boolean = true, size: Float = 0f) = Paint(
 }
 
 /** Non-touchable overlay labelling what was recognised in each cell, plus the planned move. */
-class LabelView(ctx: Context, private val s: Settings) : View(ctx) {
+class LabelView(ctx: Context) : View(ctx) {
+    private var geo: Geometry? = null
     private var grid: Array<Array<Cell>>? = null
     private var pc = 0
     private var pr = 0
@@ -25,15 +26,16 @@ class LabelView(ctx: Context, private val s: Settings) : View(ctx) {
     private val text = paint(Color.WHITE, false, 40f).apply { isFakeBoldText = true }
     private val fill = paint(Color.WHITE, false)
 
-    fun update(g: Array<Array<Cell>>, playerCol: Int, playerRow: Int, p: Plan?) {
-        grid = g; pc = playerCol; pr = playerRow; plan = p
+    fun update(geometry: Geometry, g: Array<Array<Cell>>, playerCol: Int, playerRow: Int, p: Plan?) {
+        geo = geometry; grid = g; pc = playerCol; pr = playerRow; plan = p
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         val g = grid ?: return
+        val geo = geo ?: return
         for (r in g.indices) for (c in g[r].indices) {
-            val rect = s.cellRect(c, r, width, height)
+            val rect = geo.cell(c, r)
             canvas.drawRect(rect, line)
             val (label, color) = when (g[r][c]) {
                 Cell.BLOCK -> "BLOCK" to Color.MAGENTA
@@ -51,10 +53,10 @@ class LabelView(ctx: Context, private val s: Settings) : View(ctx) {
         }
         plan?.let { p ->
             p.target?.let { t ->
-                val rt = s.cellRect(t[0], t[1], width, height)
+                val rt = geo.cell(t[0], t[1])
                 canvas.drawRect(rt, paint(Color.RED).apply { strokeWidth = 8f })
             }
-            val rp = s.cellRect(pc, pr, width, height)
+            val rp = geo.cell(pc, pr)
             val arrow = when {
                 p.step.dc > 0 -> "→"; p.step.dc < 0 -> "←"; p.step.dr > 0 -> "↓"; else -> "↑"
             }

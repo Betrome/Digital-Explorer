@@ -17,11 +17,4 @@ class Settings(ctx: Context) {
     var stepDelayMs: Int get() = sp.getInt("delay_ms", 700); set(v) = sp.edit().putInt("delay_ms", v).apply()
 
     fun gridRect(w: Int, h: Int) = RectF(left * w, top * h, right * w, bottom * h)
-
-    fun cellRect(c: Int, r: Int, w: Int, h: Int): RectF {
-        val g = gridRect(w, h)
-        val cw = g.width() / cols
-        val ch = g.height() / rows
-        return RectF(g.left + c * cw, g.top + r * ch, g.left + (c + 1) * cw, g.top + (r + 1) * ch)
-    }
 }

@@ -135,7 +135,7 @@ class OverlayService : Service() {
             runCatching { wm.removeView(existing) }
             return
         }
-        val v = LabelView(this, settings)
+        val v = LabelView(this)
         wm.addView(v, overlayParams(false, WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
         labelView = v
         ensureLoop()
@@ -198,13 +198,13 @@ class OverlayService : Service() {
                 plan = Planner.plan(a.grid, pCol, pRow, avoid, blocked)
             }
         }
-        lv?.let { v -> val p = plan; ui.post { v.update(a.grid, pCol, pRow, p) } }
+        lv?.let { v -> val p = plan; ui.post { v.update(a.geometry, a.grid, pCol, pRow, p) } }
         if (running && tapper != null && plan != null) {
             val tc = pCol + plan.step.dc
             val tr = pRow + plan.step.dr
-            val rect = settings.cellRect(tc, tr, bmp.width, bmp.height)
-            // The bottom wall hides the lower half of the bottom row, and taps on it are refused.
-            val fy = if (tr == settings.rows - 1) 0.25f else 0.5f
+            val rect = a.geometry.cell(tc, tr)
+            // Tap the middle of the tile; on the bottom row the wall hides the lower half, so aim a bit higher.
+            val fy = if (tr == settings.rows - 1) 0.4f else 0.5f
             lastTapDest = tr * settings.cols + tc
             tapper.tap(rect.centerX(), rect.top + rect.height() * fy)
         }
