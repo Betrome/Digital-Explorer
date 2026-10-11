@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Digital Explorer</string>
+    <string name="service_description">Lets Digital Explorer tap the screen to move your Digimon in the Digimon Up block-clearing mini-game.</string>
+</resources>
