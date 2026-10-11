@@ -3,7 +3,8 @@ package com.betrome.digitalexplorer
 import android.graphics.Bitmap
 import android.graphics.Color
 
-enum class Cell { GROUND, BLOCK, ITEM, PLAYER }
+/** VISITED is the bright-blue floor the Digimon has already walked on. */
+enum class Cell { GROUND, VISITED, BLOCK, ITEM, PLAYER }
 
 /** [playerCol]/[playerRow] are the Digimon's cell (last known cell if it could not be seen this frame). */
 class Analysis(val grid: Array<Array<Cell>>, val playerCol: Int, val playerRow: Int)
@@ -17,6 +18,7 @@ class Analysis(val grid: Array<Array<Cell>>, val playerCol: Int, val playerRow: 
 object GridAnalyzer {
     private const val ITEM_MIN = 0.10f
     private const val BLOCK_MIN = 0.15f
+    private const val VISITED_MIN = 0.20f
     private const val PLAYER_MIN_FRACTION = 0.04f // of a cell's area, in red pixels
 
     fun analyze(bmp: Bitmap, s: Settings, lastCol: Int, lastRow: Int): Analysis {
@@ -39,7 +41,7 @@ object GridAnalyzer {
                 val x1 = ((c * cw + cw * 0.75f).toInt()).coerceAtMost(gw)
                 val y0 = (r * ch + ch * 0.45f).toInt()
                 val y1 = ((r * ch + ch * 0.95f).toInt()).coerceAtMost(gh)
-                var n = 0; var items = 0; var blocks = 0
+                var n = 0; var items = 0; var blocks = 0; var bright = 0
                 var y = y0
                 while (y < y1) {
                     var x = x0
@@ -48,6 +50,7 @@ object GridAnalyzer {
                         val hue = hsv[0]; val sat = hsv[1]; val v = hsv[2]
                         if (hue in 11f..36f && sat > 0.6f && v > 0.6f) items++
                         else if (hue in 235f..290f && sat in 0.12f..0.55f && v > 0.3f) blocks++
+                        if (hue in 180f..215f && sat > 0.6f && v > 0.7f) bright++
                         n++
                         x += 3
                     }
@@ -57,6 +60,7 @@ object GridAnalyzer {
                     n == 0 -> Cell.GROUND
                     items.toFloat() / n > ITEM_MIN -> Cell.ITEM
                     blocks.toFloat() / n > BLOCK_MIN -> Cell.BLOCK
+                    bright.toFloat() / n > VISITED_MIN -> Cell.VISITED
                     else -> Cell.GROUND
                 }
             }

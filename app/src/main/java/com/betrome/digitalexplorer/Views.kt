@@ -27,6 +27,7 @@ class PreviewView(ctx: Context, private val s: Settings, private val grid: Array
                 Cell.BLOCK -> "B" to Color.MAGENTA
                 Cell.ITEM -> "I" to Color.rgb(255, 165, 0)
                 Cell.PLAYER -> "P" to Color.GREEN
+                Cell.VISITED -> "v" to Color.CYAN
                 Cell.GROUND -> "" to Color.WHITE
             }
             text.color = color
