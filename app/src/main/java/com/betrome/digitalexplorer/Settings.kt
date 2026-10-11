@@ -14,8 +14,6 @@ class Settings(ctx: Context) {
     var bottom: Float get() = sp.getFloat("bottom", 0.6458f); set(v) = sp.edit().putFloat("bottom", v).apply()
     var cols: Int get() = sp.getInt("cols", 5); set(v) = sp.edit().putInt("cols", v).apply()
     var rows: Int get() = sp.getInt("rows", 5); set(v) = sp.edit().putInt("rows", v).apply()
-    var playerCol: Int get() = sp.getInt("pc", 1); set(v) = sp.edit().putInt("pc", v).apply()
-    var playerRow: Int get() = sp.getInt("pr", 3); set(v) = sp.edit().putInt("pr", v).apply()
     var stepDelayMs: Int get() = sp.getInt("delay", 450); set(v) = sp.edit().putInt("delay", v).apply()
 
     fun gridRect(w: Int, h: Int) = RectF(left * w, top * h, right * w, bottom * h)

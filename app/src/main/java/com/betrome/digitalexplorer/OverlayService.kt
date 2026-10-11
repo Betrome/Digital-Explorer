@@ -38,6 +38,10 @@ class OverlayService : Service() {
     @Volatile private var running = false
     private var lastHash = 0
     private var stuck = 0
+    private var lastKey = 0
+    // Last known Digimon cell, used if it can't be spotted in a frame (it normally sits in column 1).
+    private var pCol = 1
+    private var pRow = 0
     private val avoid = HashSet<Int>()
 
     override fun onBind(i: Intent?): IBinder? = null
@@ -122,7 +126,7 @@ class OverlayService : Service() {
     private fun preview() {
         clearExtra()
         val bmp = capturer.grab() ?: return toast("No frame yet")
-        val v = PreviewView(this, settings, GridAnalyzer.analyze(bmp, settings))
+        val v = PreviewView(this, settings, GridAnalyzer.analyze(bmp, settings, pCol, pRow).grid)
         extraView = v
         wm.addView(v, overlayParams(false, WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
         ui.postDelayed({ if (extraView === v) clearExtra() }, 4000)
@@ -132,7 +136,7 @@ class OverlayService : Service() {
         if (!running) {
             if (TapService.instance == null) return toast("Enable the accessibility service first")
             clearExtra()
-            running = true; stuck = 0; avoid.clear(); lastHash = 0
+            running = true; stuck = 0; avoid.clear(); lastHash = 0; pCol = 1; pRow = settings.rows / 2
             startBtn.text = "Stop"
             bot.post { tick() }
         } else {
@@ -146,21 +150,28 @@ class OverlayService : Service() {
         val bmp = capturer.grab()
         val tapper = TapService.instance
         if (bmp != null && tapper != null) {
-            val grid = GridAnalyzer.analyze(bmp, settings)
-            val hash = grid.contentDeepHashCode()
-            if (hash == lastHash) stuck++ else { stuck = 0; avoid.clear() }
+            val a = GridAnalyzer.analyze(bmp, settings, pCol, pRow)
+            pCol = a.playerCol; pRow = a.playerRow
+            val hash = a.grid.contentDeepHashCode()
+            if (hash != lastHash) avoid.clear()
             lastHash = hash
-            val pc = settings.playerCol; val pr = settings.playerRow
-            var step = Planner.next(grid, pc, pr, avoid)
-            if (step != null && stuck >= 3) {
-                // Same screen after several taps: give up on this target and try another.
-                avoid.add((pr + step.dr) * settings.cols + (pc + step.dc))
-                step = Planner.next(grid, pc, pr, avoid)
-                stuck = 0
+            var step = Planner.next(a.grid, pCol, pRow, avoid)
+            if (step != null) {
+                // Tapping a block/item next to us that changes nothing several times in a row: skip it.
+                val dest = (pRow + step.dr) * settings.cols + (pCol + step.dc)
+                val isTarget = a.grid[pRow + step.dr][pCol + step.dc].let { it == Cell.BLOCK || it == Cell.ITEM }
+                val key = hash * 31 + dest * 7 + pCol * 3 + pRow
+                stuck = if (isTarget && key == lastKey) stuck + 1 else 0
+                lastKey = key
+                if (stuck >= 5) {
+                    avoid.add(dest)
+                    stuck = 0
+                    step = Planner.next(a.grid, pCol, pRow, avoid)
+                }
             }
             if (step != null) {
-                val rect = settings.cellRect(pc + step.dc, pr + step.dr, bmp.width, bmp.height)
-                tapper.tap(rect.centerX(), rect.top + rect.height() * 0.6f)
+                val rect = settings.cellRect(pCol + step.dc, pRow + step.dr, bmp.width, bmp.height)
+                tapper.tap(rect.centerX(), rect.centerY())
             }
         }
         bot.postDelayed({ tick() }, settings.stepDelayMs.toLong())
