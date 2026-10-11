@@ -47,6 +47,7 @@ class OverlayService : Service() {
     private val avoid = HashSet<Int>()
     private val blocked = HashSet<Int>()
     private var lastTapDest = -1
+    private var lastError = ""
 
     override fun onBind(i: Intent?): IBinder? = null
 
@@ -60,7 +61,7 @@ class OverlayService : Service() {
         )
         wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         settings = Settings(this)
-        capturer = ScreenCapturer(this, projection)
+        capturer = ScreenCapturer(this, projection) { toast("Screen capture stopped"); stopSelf() }
         showPanel()
         return START_NOT_STICKY
     }
@@ -162,7 +163,14 @@ class OverlayService : Service() {
 
     private fun loop() {
         if (!running && labelView == null) { loopActive = false; return }
-        tick()
+        try {
+            tick()
+        } catch (e: Throwable) {
+            // Never let one bad frame kill the app; report it so it can be diagnosed.
+            android.util.Log.e("DigitalExplorer", "tick failed", e)
+            val msg = "Error: ${e.javaClass.simpleName} ${e.message ?: ""}".take(120)
+            if (msg != lastError) { lastError = msg; toast(msg) }
+        }
         bot.postDelayed({ loop() }, settings.stepDelayMs.toLong())
     }
 

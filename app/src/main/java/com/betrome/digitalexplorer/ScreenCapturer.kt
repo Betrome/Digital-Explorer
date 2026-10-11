@@ -12,7 +12,7 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 
-class ScreenCapturer(ctx: Context, private val projection: MediaProjection) {
+class ScreenCapturer(ctx: Context, private val projection: MediaProjection, onStopped: () -> Unit) {
     val width: Int
     val height: Int
     private val reader: ImageReader
@@ -27,7 +27,9 @@ class ScreenCapturer(ctx: Context, private val projection: MediaProjection) {
         reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         val handler = Handler(Looper.getMainLooper())
         // Android 14 requires a callback to be registered before creating the virtual display.
-        projection.registerCallback(object : MediaProjection.Callback() {}, handler)
+        projection.registerCallback(object : MediaProjection.Callback() {
+            override fun onStop() { onStopped() }
+        }, handler)
         display = projection.createVirtualDisplay(
             "digital-explorer", width, height, dpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.surface, null, handler
@@ -43,7 +45,9 @@ class ScreenCapturer(ctx: Context, private val projection: MediaProjection) {
             val padded = plane.rowStride / plane.pixelStride
             val full = Bitmap.createBitmap(padded, height, Bitmap.Config.ARGB_8888)
             full.copyPixelsFromBuffer(plane.buffer)
-            last = if (padded == width) full else Bitmap.createBitmap(full, 0, 0, width, height)
+            val old = last
+            last = if (padded == width) full else Bitmap.createBitmap(full, 0, 0, width, height).also { full.recycle() }
+            old?.recycle()
         } finally {
             img.close()
         }

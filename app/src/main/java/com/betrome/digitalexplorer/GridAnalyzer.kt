@@ -143,7 +143,11 @@ object GridAnalyzer {
             java.util.Arrays.sort(buf, 0, k)
             rowP[i] = if (k > 0) buf[k / 2].toFloat() else 0f
         }
-        fit(rowP, reg.oy + 3, g.top, chExp, s.rows)?.let { top = it.first; ch = it.second }
+        // The floor's top edge (where the wall above it ends) pins which line is row 0, so a
+        // calibration that includes the wall cannot shift the whole grid up by a row.
+        val topAnchor = floorTop(reg, gx0, gx1, g.top)
+        fit(rowP, reg.oy + 3, topAnchor ?: g.top, chExp, s.rows, if (topAnchor != null) 0.25f else 0.6f)
+            ?.let { top = it.first; ch = it.second }
 
         // Column lines: interior lines only, k = 1 until cols (the outer edges are the view's frame).
         if (s.cols > 1) {
@@ -160,20 +164,86 @@ object GridAnalyzer {
                 java.util.Arrays.sort(buf, 0, k)
                 colP[i] = if (k > 0) buf[k / 2].toFloat() else 0f
             }
-            fit(colP, reg.ox + 3, g.left + baseCw, cwExp, s.cols - 1)?.let { left = it.first - it.second; cw = it.second }
+            val leftAnchor = floorLeft(reg, top, chExp * s.rows, g.left)
+            // Column 0 is ~6% cut off by the view's left edge, so line 1 sits ~0.935 cells in from it.
+            val line1 = if (leftAnchor != null) leftAnchor + 0.935f * cwExp else g.left + baseCw
+            fit(colP, reg.ox + 3, line1, cwExp, s.cols - 1, if (leftAnchor != null) 0.25f else 0.6f)
+                ?.let { left = it.first - it.second; cw = it.second }
         }
         return Geometry(left, top, cw, ch, s.cols, s.rows)
     }
 
+
+    private fun isStrictFloor(c: Int, hsv: FloatArray): Boolean {
+        Color.colorToHSV(c, hsv)
+        return hsv[0] in 185f..225f && hsv[1] > 0.88f && hsv[2] > 0.2f
+    }
+
+    /**
+     * Edge candidates in a floor-coverage profile: index i where floor suddenly starts (nothing
+     * before it, floor after). Returns the one closest to [target], in absolute coordinates.
+     */
+    private fun edgeNear(frac: FloatArray, start: Int, target: Float): Float? {
+        val m = 8
+        val k = 4
+        var best: Int? = null
+        for (i in m until frac.size - k) {
+            var after = 0f
+            for (j in 0 until k) after += frac[i + j]
+            var before = 0f
+            for (j in 1..m) before += frac[i - j]
+            if (after / k > 0.3f && before / m < 0.05f) {
+                if (best == null || Math.abs(start + i - target) < Math.abs(best - target)) best = start + i
+            }
+        }
+        return best?.toFloat()
+    }
+
+    /** y where the blue floor begins (the wall's base), closest to the calibrated top. */
+    private fun floorTop(reg: Region, gx0: Int, gx1: Int, calTop: Float): Float? {
+        val hsv = FloatArray(3)
+        val frac = FloatArray(reg.h)
+        for (i in 0 until reg.h) {
+            var n = 0; var f = 0
+            var x = gx0
+            while (x < gx1) {
+                if (isStrictFloor(reg.at(x, reg.oy + i), hsv)) f++
+                n++
+                x += 4
+            }
+            frac[i] = if (n > 0) f.toFloat() / n else 0f
+        }
+        return edgeNear(frac, reg.oy, calTop)
+    }
+
+    /** x where the blue floor begins (the view's left edge), closest to the calibrated left. */
+    private fun floorLeft(reg: Region, top: Float, height: Float, calLeft: Float): Float? {
+        val hsv = FloatArray(3)
+        val y0 = top.toInt().coerceAtLeast(reg.oy)
+        val y1 = (top + height).toInt().coerceAtMost(reg.oy + reg.h)
+        val frac = FloatArray(reg.w)
+        for (i in 0 until reg.w) {
+            var n = 0; var f = 0
+            var y = y0
+            while (y < y1) {
+                if (isStrictFloor(reg.at(reg.ox + i, y), hsv)) f++
+                n++
+                y += 4
+            }
+            frac[i] = if (n > 0) f.toFloat() / n else 0f
+        }
+        return edgeNear(frac, reg.ox, calLeft)
+    }
+
     /** Best (first line position, spacing) for [count] evenly spaced lines, or null if unconvincing. */
-    private fun fit(profile: FloatArray, start: Int, pos0: Float, period: Float, count: Int): Pair<Float, Float>? {
+    private fun fit(profile: FloatArray, start: Int, pos0: Float, period: Float, count: Int, window: Float): Pair<Float, Float>? {
         var best = -1f; var bestPos = pos0; var bestP = period
         var sum = 0f; var n = 0
         var pf = 0.94f
         while (pf <= 1.0601f) {
             val p = period * pf
-            var d = -period * 0.6f
-            while (d <= period * 0.6f) {
+            var d = -period * window
+            while (d <= period * window) {
                 val o = pos0 + d
                 var sc = 0f
                 var ok = true
