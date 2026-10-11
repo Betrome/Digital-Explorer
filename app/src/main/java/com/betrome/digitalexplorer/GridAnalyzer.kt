@@ -8,7 +8,7 @@ import android.graphics.RectF
 enum class Cell { GROUND, VISITED, BLOCK, ITEM, PLAYER }
 
 /** [playerCol]/[playerRow] are the Digimon's cell (last known cell if it could not be seen this frame). */
-class Analysis(val grid: Array<Array<Cell>>, val playerCol: Int, val playerRow: Int)
+class Analysis(val grid: Array<Array<Cell>>, val playerCol: Int, val playerRow: Int, val popup: Boolean = false)
 
 /**
  * Classifies each grid cell by colour, so any kind of item is picked up, not just one colour:
@@ -22,6 +22,7 @@ object GridAnalyzer {
     private const val ITEM_MIN = 0.10f
     private const val BLOCK_MIN = 0.15f
     private const val VISITED_MIN = 0.20f
+    private const val POPUP_MIN = 0.025f // fraction of the grid that is the pop-up's bright cyan bar
     private const val PLAYER_MIN_FRACTION = 0.04f // of a cell's area, in red pixels
 
     private class Player(val col: Int, val row: Int, val box: RectF)
@@ -39,6 +40,8 @@ object GridAnalyzer {
         bmp.getPixels(px, 0, gw, gx, gy, gw, gh)
         val cw = g.width() / s.cols
         val ch = g.height() / s.rows
+
+        if (hasPopup(px)) return Analysis(emptyArray(), lastCol, lastRow, popup = true)
 
         val player = findPlayer(px, gw, gh, cw, ch, s)
         val pc = player?.col ?: lastCol
@@ -82,6 +85,24 @@ object GridAnalyzer {
             }
         }
         return Analysis(grid, pc, pr)
+    }
+
+    /**
+     * The "Cannot move to this location." banner covers the middle of the grid; its bright cyan
+     * underline (hue ~188, saturated, bright) is far more common there than anywhere else.
+     */
+    private fun hasPopup(px: IntArray): Boolean {
+        val hsv = FloatArray(3)
+        var n = 0
+        var cyan = 0
+        var i = 0
+        while (i < px.size) {
+            Color.colorToHSV(px[i], hsv)
+            if (hsv[0] in 183f..196f && hsv[1] > 0.65f && hsv[2] > 0.8f) cyan++
+            n++
+            i += 5
+        }
+        return n > 0 && cyan.toFloat() / n > POPUP_MIN
     }
 
     /** Finds the Digimon via its red cape; null if not visible. */

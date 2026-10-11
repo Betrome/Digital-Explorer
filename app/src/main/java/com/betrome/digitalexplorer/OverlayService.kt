@@ -45,6 +45,8 @@ class OverlayService : Service() {
     private var pCol = 1
     private var pRow = 0
     private val avoid = HashSet<Int>()
+    private val blocked = HashSet<Int>()
+    private var lastTapDest = -1
 
     override fun onBind(i: Intent?): IBinder? = null
 
@@ -143,7 +145,7 @@ class OverlayService : Service() {
         if (!running) {
             if (TapService.instance == null) return toast("Enable the accessibility service first")
             clearExtra()
-            running = true; stuck = 0; avoid.clear(); lastHash = 0; pCol = 1; pRow = settings.rows / 2
+            running = true; stuck = 0; avoid.clear(); blocked.clear(); lastTapDest = -1; lastHash = 0; pCol = 1; pRow = settings.rows / 2
             startBtn.text = "Stop"
             ensureLoop()
         } else {
@@ -173,11 +175,16 @@ class OverlayService : Service() {
         val tapper = TapService.instance
         if (bmp == null) return
         val a = GridAnalyzer.analyze(bmp, settings, pCol, pRow)
+        if (a.popup) {
+            // "Cannot move to this location." - the last tap was refused, so never route through it.
+            if (lastTapDest >= 0) { blocked.add(lastTapDest); lastTapDest = -1 }
+            return
+        }
         pCol = a.playerCol; pRow = a.playerRow
         val hash = a.grid.contentDeepHashCode()
-        if (hash != lastHash) avoid.clear()
+        if (hash != lastHash) { avoid.clear(); blocked.clear() }
         lastHash = hash
-        var plan = Planner.plan(a.grid, pCol, pRow, avoid)
+        var plan = Planner.plan(a.grid, pCol, pRow, avoid, blocked)
         if (plan != null) {
             // Tapping a block/item next to us that changes nothing several times in a row: skip it.
             val dest = (pRow + plan.step.dr) * settings.cols + (pCol + plan.step.dc)
@@ -188,13 +195,18 @@ class OverlayService : Service() {
             if (stuck >= 5) {
                 avoid.add(dest)
                 stuck = 0
-                plan = Planner.plan(a.grid, pCol, pRow, avoid)
+                plan = Planner.plan(a.grid, pCol, pRow, avoid, blocked)
             }
         }
         lv?.let { v -> val p = plan; ui.post { v.update(a.grid, pCol, pRow, p) } }
         if (running && tapper != null && plan != null) {
-            val rect = settings.cellRect(pCol + plan.step.dc, pRow + plan.step.dr, bmp.width, bmp.height)
-            tapper.tap(rect.centerX(), rect.centerY())
+            val tc = pCol + plan.step.dc
+            val tr = pRow + plan.step.dr
+            val rect = settings.cellRect(tc, tr, bmp.width, bmp.height)
+            // The bottom wall hides the lower half of the bottom row, and taps on it are refused.
+            val fy = if (tr == settings.rows - 1) 0.25f else 0.5f
+            lastTapDest = tr * settings.cols + tc
+            tapper.tap(rect.centerX(), rect.top + rect.height() * fy)
         }
     }
 
