@@ -42,7 +42,7 @@ class MainActivity : Activity() {
         cols = field(settings.cols); rows = field(settings.rows); delay = field(settings.stepDelayMs)
         root.addView(cols); root.addView(rows); root.addView(delay)
         root.addView(btn("3. Start overlay") { start() })
-        root.addView(label("Then open the game's grid screen, tap Calibrate once, Preview to check detection, and Start."))
+        root.addView(label("Then open the game's grid screen, tap Calibrate once, Labels to see what it detects, and Start."))
         setContentView(root)
     }
 

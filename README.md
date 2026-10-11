@@ -10,6 +10,6 @@ Open in Android Studio, or push — GitHub Actions builds `app-debug.apk` (artif
 ## Use
 1. Open app → allow draw-over-apps, enable the **Digital Explorer** accessibility service, tap **Start overlay**.
 2. Open the mini-game grid. In the floating panel: **Calibrate** (drag over the whole grid),
-   **Preview** (shows B/I/P per cell for 4 s to verify detection), **Start / Stop**.
+   **Labels** (toggle: marks every cell ITEM / BLOCK / visited / YOU, outlines the target in red and shows the next move arrow), **Start / Stop**.
 
 The Digimon is found automatically from its red cape. Defaults (5x5 grid) match `docs/sample-screenshot.png`. Keep the panel off the grid.

@@ -36,6 +36,8 @@ class OverlayService : Service() {
     private var extraView: View? = null
 
     @Volatile private var running = false
+    @Volatile private var labelView: LabelView? = null
+    @Volatile private var loopActive = false
     private var lastHash = 0
     private var stuck = 0
     private var lastKey = 0
@@ -93,7 +95,7 @@ class OverlayService : Service() {
         col.addView(handle)
         col.addView(startBtn)
         col.addView(btn("Calibrate") { calibrate() })
-        col.addView(btn("Preview") { preview() })
+        col.addView(btn("Labels") { toggleLabels() })
         col.addView(btn("Quit") { stopSelf() })
 
         val lp = overlayParams(true, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
@@ -117,19 +119,24 @@ class OverlayService : Service() {
 
     private fun calibrate() {
         if (running) toggle()
+        labelView?.let { labelView = null; runCatching { wm.removeView(it) } }
         clearExtra()
         val v = CalibrationView(this, settings) { clearExtra(); toast("Calibration saved") }
         extraView = v
         wm.addView(v, overlayParams(true, WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
     }
 
-    private fun preview() {
-        clearExtra()
-        val bmp = capturer.grab() ?: return toast("No frame yet")
-        val v = PreviewView(this, settings, GridAnalyzer.analyze(bmp, settings, pCol, pRow).grid)
-        extraView = v
+    private fun toggleLabels() {
+        val existing = labelView
+        if (existing != null) {
+            labelView = null
+            runCatching { wm.removeView(existing) }
+            return
+        }
+        val v = LabelView(this, settings)
         wm.addView(v, overlayParams(false, WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT))
-        ui.postDelayed({ if (extraView === v) clearExtra() }, 4000)
+        labelView = v
+        ensureLoop()
     }
 
     private fun toggle() {
@@ -138,49 +145,65 @@ class OverlayService : Service() {
             clearExtra()
             running = true; stuck = 0; avoid.clear(); lastHash = 0; pCol = 1; pRow = settings.rows / 2
             startBtn.text = "Stop"
-            bot.post { tick() }
+            ensureLoop()
         } else {
             running = false
             startBtn.text = "Start"
         }
     }
 
+    private fun ensureLoop() {
+        if (loopActive) return
+        loopActive = true
+        bot.post { loop() }
+    }
+
+    private fun loop() {
+        if (!running && labelView == null) { loopActive = false; return }
+        tick()
+        bot.postDelayed({ loop() }, settings.stepDelayMs.toLong())
+    }
+
     private fun tick() {
-        if (!running) return
+        // The label overlay would be captured with the screen, so hide it for the grab.
+        val lv = labelView
+        if (lv != null) { ui.post { lv.alpha = 0f }; Thread.sleep(90) }
         val bmp = capturer.grab()
+        if (lv != null) ui.post { lv.alpha = 1f }
         val tapper = TapService.instance
-        if (bmp != null && tapper != null) {
-            val a = GridAnalyzer.analyze(bmp, settings, pCol, pRow)
-            pCol = a.playerCol; pRow = a.playerRow
-            val hash = a.grid.contentDeepHashCode()
-            if (hash != lastHash) avoid.clear()
-            lastHash = hash
-            var step = Planner.next(a.grid, pCol, pRow, avoid)
-            if (step != null) {
-                // Tapping a block/item next to us that changes nothing several times in a row: skip it.
-                val dest = (pRow + step.dr) * settings.cols + (pCol + step.dc)
-                val isTarget = a.grid[pRow + step.dr][pCol + step.dc].let { it == Cell.BLOCK || it == Cell.ITEM }
-                val key = hash * 31 + dest * 7 + pCol * 3 + pRow
-                stuck = if (isTarget && key == lastKey) stuck + 1 else 0
-                lastKey = key
-                if (stuck >= 5) {
-                    avoid.add(dest)
-                    stuck = 0
-                    step = Planner.next(a.grid, pCol, pRow, avoid)
-                }
-            }
-            if (step != null) {
-                val rect = settings.cellRect(pCol + step.dc, pRow + step.dr, bmp.width, bmp.height)
-                tapper.tap(rect.centerX(), rect.centerY())
+        if (bmp == null) return
+        val a = GridAnalyzer.analyze(bmp, settings, pCol, pRow)
+        pCol = a.playerCol; pRow = a.playerRow
+        val hash = a.grid.contentDeepHashCode()
+        if (hash != lastHash) avoid.clear()
+        lastHash = hash
+        var plan = Planner.plan(a.grid, pCol, pRow, avoid)
+        if (plan != null) {
+            // Tapping a block/item next to us that changes nothing several times in a row: skip it.
+            val dest = (pRow + plan.step.dr) * settings.cols + (pCol + plan.step.dc)
+            val isTarget = a.grid[pRow + plan.step.dr][pCol + plan.step.dc].let { it == Cell.BLOCK || it == Cell.ITEM }
+            val key = hash * 31 + dest * 7 + pCol * 3 + pRow
+            stuck = if (running && isTarget && key == lastKey) stuck + 1 else 0
+            lastKey = key
+            if (stuck >= 5) {
+                avoid.add(dest)
+                stuck = 0
+                plan = Planner.plan(a.grid, pCol, pRow, avoid)
             }
         }
-        bot.postDelayed({ tick() }, settings.stepDelayMs.toLong())
+        lv?.let { v -> val p = plan; ui.post { v.update(a.grid, pCol, pRow, p) } }
+        if (running && tapper != null && plan != null) {
+            val rect = settings.cellRect(pCol + plan.step.dc, pRow + plan.step.dr, bmp.width, bmp.height)
+            tapper.tap(rect.centerX(), rect.centerY())
+        }
     }
 
     private fun toast(msg: String) = ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }.let { }
 
     override fun onDestroy() {
         running = false
+        labelView?.let { runCatching { wm.removeView(it) } }
+        labelView = null
         clearExtra()
         if (::panel.isInitialized) runCatching { wm.removeView(panel) }
         if (::capturer.isInitialized) capturer.release()

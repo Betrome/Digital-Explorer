@@ -3,6 +3,9 @@ package com.betrome.digitalexplorer
 /** One cardinal step: (dc, dr) with exactly one of them non-zero. */
 data class Step(val dc: Int, val dr: Int)
 
+/** [target] is (col, row) of the block/item being headed for, or null when just exploring right. */
+class Plan(val step: Step, val target: IntArray?)
+
 object Planner {
     private val DIRS = arrayOf(Step(0, -1), Step(0, 1), Step(-1, 0), Step(1, 0))
 
@@ -15,7 +18,7 @@ object Planner {
      * no other way. With nothing left on screen, steps right so the camera scrolls.
      * [avoid] holds cell indices (r * cols + c) that seem stuck.
      */
-    fun next(grid: Array<Array<Cell>>, pc: Int, pr: Int, avoid: Set<Int>): Step? {
+    fun plan(grid: Array<Array<Cell>>, pc: Int, pr: Int, avoid: Set<Int>): Plan? {
         val rows = grid.size
         val cols = grid[0].size
         val dist = Array(rows) { IntArray(cols) { Int.MAX_VALUE } }
@@ -47,7 +50,7 @@ object Planner {
             val score = c * 10000 + dist[r][c] * 10 + (if (cell == Cell.ITEM) 0 else 1)
             if (score < bestScore) { bestScore = score; best = intArrayOf(c, r) }
         }
-        best?.let { return first[it[1]][it[0]] }
-        return if (pc + 1 < cols) Step(1, 0) else null
+        best?.let { b -> first[b[1]][b[0]]?.let { return Plan(it, b) } }
+        return if (pc + 1 < cols) Plan(Step(1, 0), null) else null
     }
 }

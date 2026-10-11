@@ -15,23 +15,51 @@ private fun paint(color: Int, stroke: Boolean = true, size: Float = 0f) = Paint(
     if (size > 0) textSize = size
 }
 
-/** Non-touchable overlay showing the detected grid and what was recognised in each cell. */
-class PreviewView(ctx: Context, private val s: Settings, private val grid: Array<Array<Cell>>) : View(ctx) {
-    private val line = paint(Color.CYAN)
-    private val text = paint(Color.WHITE, false, 44f)
+/** Non-touchable overlay labelling what was recognised in each cell, plus the planned move. */
+class LabelView(ctx: Context, private val s: Settings) : View(ctx) {
+    private var grid: Array<Array<Cell>>? = null
+    private var pc = 0
+    private var pr = 0
+    private var plan: Plan? = null
+    private val line = paint(Color.argb(160, 255, 255, 255))
+    private val text = paint(Color.WHITE, false, 40f).apply { isFakeBoldText = true }
+    private val fill = paint(Color.WHITE, false)
+
+    fun update(g: Array<Array<Cell>>, playerCol: Int, playerRow: Int, p: Plan?) {
+        grid = g; pc = playerCol; pr = playerRow; plan = p
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
-        for (r in grid.indices) for (c in grid[r].indices) {
+        val g = grid ?: return
+        for (r in g.indices) for (c in g[r].indices) {
             val rect = s.cellRect(c, r, width, height)
             canvas.drawRect(rect, line)
-            val (label, color) = when (grid[r][c]) {
-                Cell.BLOCK -> "B" to Color.MAGENTA
-                Cell.ITEM -> "I" to Color.rgb(255, 165, 0)
-                Cell.PLAYER -> "P" to Color.GREEN
-                Cell.VISITED -> "v" to Color.CYAN
+            val (label, color) = when (g[r][c]) {
+                Cell.BLOCK -> "BLOCK" to Color.MAGENTA
+                Cell.ITEM -> "ITEM" to Color.rgb(255, 165, 0)
+                Cell.PLAYER -> "YOU" to Color.GREEN
+                Cell.VISITED -> "visited" to Color.CYAN
                 Cell.GROUND -> "" to Color.WHITE
             }
+            if (label.isEmpty()) continue
+            fill.color = Color.argb(170, 0, 0, 0)
+            val w = text.measureText(label)
+            canvas.drawRect(rect.centerX() - w / 2 - 6, rect.centerY() - 38f, rect.centerX() + w / 2 + 6, rect.centerY() + 12f, fill)
             text.color = color
-            canvas.drawText(label, rect.centerX() - 12f, rect.centerY() + 15f, text)
+            canvas.drawText(label, rect.centerX() - w / 2, rect.centerY(), text)
+        }
+        plan?.let { p ->
+            p.target?.let { t ->
+                val rt = s.cellRect(t[0], t[1], width, height)
+                canvas.drawRect(rt, paint(Color.RED).apply { strokeWidth = 8f })
+            }
+            val rp = s.cellRect(pc, pr, width, height)
+            val arrow = when {
+                p.step.dc > 0 -> "→"; p.step.dc < 0 -> "←"; p.step.dr > 0 -> "↓"; else -> "↑"
+            }
+            text.color = Color.YELLOW
+            canvas.drawText(arrow, rp.centerX() - 15f, rp.centerY() + 40f, text)
         }
     }
 }
