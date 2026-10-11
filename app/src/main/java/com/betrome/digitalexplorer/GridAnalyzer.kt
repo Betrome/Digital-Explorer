@@ -118,9 +118,11 @@ object GridAnalyzer {
             fx.min() - cw * 0.12f, fy.min() - ch * 0.05f,
             fx.max() + cw * 0.12f, fy.max() + ch * 0.15f
         )
+        // The cape sits ~0.2 cells above/left of the cell centre. Shift so the reading is centred in
+        // its cell, which tolerates a grid calibration that is off by up to half a cell.
         return Player(
-            (cx / cw).toInt().coerceIn(0, s.cols - 1),
-            (bottom / ch).toInt().coerceIn(0, s.rows - 1),
+            ((cx + cw * 0.22f) / cw).toInt().coerceIn(0, s.cols - 1),
+            ((bottom - ch * 0.19f) / ch).toInt().coerceIn(0, s.rows - 1),
             box
         )
     }
