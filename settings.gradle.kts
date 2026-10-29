@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "DigitalExplorer"
-include(":app")
+include(":app", ":proximity")

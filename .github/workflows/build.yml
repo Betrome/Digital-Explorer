@@ -18,12 +18,18 @@ jobs:
         with:
           name: digital-explorer-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proximity-saver-debug-apk
+          path: proximity/build/outputs/apk/debug/proximity-debug.apk
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk digital-explorer-build-${{ github.run_number }}.apk
+          cp proximity/build/outputs/apk/debug/proximity-debug.apk proximity-saver-build-${{ github.run_number }}.apk
           gh release create "build-${{ github.run_number }}" digital-explorer-build-${{ github.run_number }}.apk \
+            proximity-saver-build-${{ github.run_number }}.apk \
             --target "${{ github.sha }}" --prerelease \
             --title "Build ${{ github.run_number }}" \
             --notes "Debug APK built from ${{ github.sha }} (${{ github.ref_name }})."
