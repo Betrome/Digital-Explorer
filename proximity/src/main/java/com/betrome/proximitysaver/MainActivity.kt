@@ -115,7 +115,7 @@ class MainActivity : Activity(), SensorEventListener {
             else -> "%.1f cm - clear".format(lastValue)
         }
         reading.text = "Live sensor reading: $state\n(${s.name}, max ${"%.1f".format(s.maximumRange)} cm)"
-        sensLabel.text = "Sensitivity: ${settings.sensitivity}% - counts as covered below %.2f cm".format(threshold)
+        sensLabel.text = "Sensitivity: ${settings.sensitivity}%% - counts as covered below %.2f cm".format(threshold)
         delayLabel.text = "Wait before screen off: %.2f s".format(settings.delayMs / 1000f)
     }
 }
