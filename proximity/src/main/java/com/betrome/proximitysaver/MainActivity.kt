@@ -65,7 +65,8 @@ class MainActivity : Activity(), SensorEventListener {
 
         root.addView(label("Tips: if the screen turns off when nothing is covering the sensor, raise the delay " +
             "or lower the sensitivity. Many sensors only report two values (covered / clear), in which case only " +
-            "the delay makes a difference. Turn it off here or from the notification."))
+            "the delay makes a difference. Turn it off here, from the notification, or with the " +
+            "Proximity Saver tile in Quick Settings (edit the tiles to add it)."))
         setContentView(ScrollView(this).apply { addView(root) })
         refresh()
     }

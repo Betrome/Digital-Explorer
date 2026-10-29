@@ -76,6 +76,7 @@ class ProximityService : Service(), SensorEventListener {
                 addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF)
             })
             if (pm.isInteractive) listen()
+            ToggleTile.refresh(this)
         }
         return START_STICKY
     }
@@ -134,6 +135,7 @@ class ProximityService : Service(), SensorEventListener {
             unregisterReceiver(screenReceiver)
             unlisten()
         }
+        ToggleTile.refresh(this)
         super.onDestroy()
     }
 
